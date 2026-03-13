@@ -1,0 +1,195 @@
+---
+title: "How Rasch measures are calculated using JMLE"
+vignette: >
+  %\VignetteIndexEntry{How Rasch measures are calculated using JMLE}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+knitr:
+  opts_chunk:
+    collapse: true
+    comment: '#>'
+---
+
+This is an r implementation of an Excel demo by Mark Moulton, which can be found at https://www.rasch.org/moulton.htm.
+
+```{r}
+#| label: setup
+library(cgrasch)
+library(tidyverse)
+library(flextable)
+```
+
+```{r}
+#| label: data
+
+# Use package data of a simple set of 10 candidates' responses to dichotomous
+# items. 
+candidate_data <- dichotomous
+
+```
+
+Persons A to I are assigned a probability of success between .1 and .9 and their performance simulated on 10 dichotomous items. The modelling can't handle perfect or zero scores. Candidate A is given an NA for item 1 to simulate missing data. [This ability to handle missing data is the foundation of the concept of linking.]
+
+```{r}
+#| echo: false
+
+candidate_data |> 
+  pivot_wider(names_from = item, values_from = response) |> 
+  flextable()
+
+```
+
+First, calculate the proportion correct (P) for each candidate and convert to person ability logits by taking the natural log of the odds of success.
+
+$$ person\ ability\ logit = ln(\frac{p}{1-p}) $$
+
+Do the same for items, calculating proportion *incorrect* and converting to item difficulty logits. Also, calculate the adjusted item difficulty logits so that they have a mean of 0.00 logits. This anchors the scale on zero and makes it possible to compute expected values that approximate to observed values.
+
+$$ item\ difficulty\ logit = ln(\frac{1 - p}{p}) $$
+
+```{r}
+#| label: summary
+
+summary_candidates <- candidate_data |> 
+  group_by(person) |> 
+  reframe(P = sum(response, na.rm = TRUE)/n()) |> 
+  mutate(ability_logit = log(P/(1-P)))
+
+summary_items <- candidate_data |> 
+  group_by(item) |> 
+  reframe(P = sum(response, na.rm = TRUE)/n()) |> 
+  mutate(
+    difficulty_logit = log((1-P)/P),
+    adj_difficulty_logit = difficulty_logit - 
+      mean(difficulty_logit, na.rm = TRUE)
+  )
+
+```
+
+```{r}
+#| label: summary-candidates
+#| echo: false
+
+summary_candidates |> 
+  mutate(across(where(is.numeric), ~ round(., 2))) |> 
+  flextable()
+
+```
+
+\
+
+```{r}
+#| label: summary-items
+#| echo: false
+
+summary_items |> 
+  mutate(across(where(is.numeric), ~ round(., 2))) |> 
+  flextable()
+
+```
+
+\
+
+The next step is to calculate the expected values for each person and item. This value is calculated as the sum of each possible value times its probability. For person A on item 1, the probability is given as:
+
+$$ P_{A1=1} = \frac{e^{(person\ logit - item\ logit)}}{1 + e^{(person\ logit - item\ logit)}} $$
+
+```{r}
+#| label: iteration-one
+
+iteration_1 <- summary_candidates |>
+    select(person, ability_logit) |>
+    mutate(
+        data = list(
+            summary_items |>
+                select(item, adj_difficulty_logit)
+        )
+    ) |>
+    unnest(data) |>
+    mutate(
+        expected_value = exp(ability_logit - adj_difficulty_logit) /
+            (1 + exp(ability_logit - adj_difficulty_logit)),
+        variance = expected_value * (1 - expected_value)
+    )
+
+```
+
+```{r}
+#| label: iteration-one-table
+#| echo: false
+
+iteration_1 |> 
+  select(person, item, expected_value) |> 
+  pivot_wider(names_from = item, values_from = expected_value) |> 
+  mutate(across(where(is.numeric), ~ round(., 2))) |> 
+  flextable()
+
+```
+
+Next we calculate the variance of each estimate, which is the standard error squared.
+
+$$ V = p(1 - p) $$
+
+```{r}
+#| label: variance-table
+
+iteration_1 |> 
+  select(person, item, variance) |> 
+  pivot_wider(names_from = item, values_from = variance) |> 
+  mutate(across(where(is.numeric), ~ round(., 2))) |> 
+  flextable()
+
+```
+
+Then calculate the sum of variances by candidate and multiply by -1. This figure will be used to adjust the ability logit later in this first iteration. Also, calculate the sum of variances for each item and multiply -1. These figures are second derivatives of the likelihood function; they are used as the denominator when tweaking the difficulty logit to maximise fit.
+
+```{r}
+#| label: sum-variances
+
+sum_person_variances <- iteration_1 |> 
+  group_by(person) |> 
+  reframe(sum_variances= sum(variance) * -1)
+  
+sum_item_variances <- iteration_1 |> 
+  group_by(item) |> 
+  reframe(sum_variances= sum(variance) * -1)
+
+```
+
+Next, calculate the residuals between the iterations.
+
+```{r}
+#| label: residuals-1
+
+residuals_1 <- iteration_1|> 
+  left_join(
+    candidate_data,
+    by = join_by(person, item)
+  ) |> 
+  mutate(residual = response - expected_value)
+
+```
+
+```{r}
+#| label: residuals-table
+#| echo: false
+
+residuals_1 |> 
+  select(person, item, residual) |> 
+  pivot_wider(names_from = item, values_from = residual) |> 
+  mutate(across(where(is.numeric), ~ round(., 2))) |> 
+  flextable()
+
+```
+
+Now, compute the sum of the residuals by candidate. The goal is to adjust the ability and difficulty logit measures until this sum of residuals equals zero for each candidate. This solution is known as the *Maximum Likelihood* solution. It is nearly the same as the Least Squares solution.
+
+```{r}
+#| label: maximum-likelihood
+
+residuals_1 |> 
+  group_by(person) |> 
+  reframe(sum_residuals = sum(residual, na.rm = TRUE)) |> 
+  reframe(ss = sum(sum_residuals^2))
+  
+```
