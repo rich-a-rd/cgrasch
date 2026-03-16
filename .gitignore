@@ -4,4 +4,7 @@
 .httr-oauth
 .DS_Store
 .quarto
-\dev
+.Rproj
+/dev
+inst/doc
+**/.quarto/
