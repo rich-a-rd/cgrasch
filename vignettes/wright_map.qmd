@@ -1,0 +1,20 @@
+---
+title: "Wright map"
+vignette: >
+  %\VignetteIndexEntry{Wright map}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+knitr:
+  opts_chunk:
+    collapse: true
+    comment: '#>'
+---
+
+```{r}
+#| label: setup
+ library(cgrasch)
+```
+
+## What is a wright map
+
+A Wright map, named after one of the greats of Rasch theory, Geoffrey Wright, is a very common visualisation for Rasch models. It maps the person abilities against the item difficulties. It is very useful for assessing the degree to which the items on a test form are targeted to the candidates.

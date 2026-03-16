@@ -146,9 +146,11 @@ Then calculate the sum of variances by candidate and multiply by -1. This figure
 ```{r}
 #| label: sum-variances
 
+# I've done this differently below and not used these values.
+
 sum_person_variances <- iteration_1 |> 
-  group_by(person) |> 
-  reframe(sum_variances= sum(variance) * -1)
+  dplyr::group_by(person) |> 
+  dplyr::reframe(sum_variances= sum(variance) * -1)
   
 sum_item_variances <- iteration_1 |> 
   group_by(item) |> 
@@ -182,7 +184,7 @@ residuals_1 |>
 
 ```
 
-Now, compute the sum of the residuals by candidate. The goal is to adjust the ability and difficulty logit measures until this sum of residuals equals zero for each candidate. This solution is known as the *Maximum Likelihood* solution. It is nearly the same as the Least Squares solution.
+Now, compute the sum of the residuals by candidate. The goal is to adjust the ability and difficulty logit measures until this sum of residuals equals zero for each candidate. This solution is known as the *Maximum Likelihood* solution. It is nearly the same as the *Least Squares* solution.
 
 ```{r}
 #| label: maximum-likelihood
@@ -193,3 +195,94 @@ residuals_1 |>
   reframe(ss = sum(sum_residuals^2))
   
 ```
+
+Use the sum of the residuals and the sum of the variances calculated to adjust the ability scores.
+
+$$ new\ ability\ logit = ability\ logit - \left(\frac{sum\ residuals}{sum\ variances}\right) $$
+
+```{r}
+#| label: adjust-ability
+
+adjusted_ability_1 <- summary_candidates |> 
+  dplyr::left_join(
+    residuals_1 |> 
+      dplyr::group_by(person) |> 
+      dplyr::reframe(sum_residuals = sum(residual, na.rm = TRUE)),
+    by = dplyr::join_by(person)
+  ) |> 
+  dplyr::left_join(
+    residuals_1 |> 
+      dplyr::group_by(person) |> 
+      dplyr::reframe(sum_variances = sum(variance)),
+    by = dplyr::join_by(person)
+  ) |> 
+  dplyr::mutate(
+    new_adj_ability_logit = ability_logit - (sum_residuals / sum_variances)
+  )
+
+adjusted_ability_1 |> 
+  flextable::flextable()
+
+```
+
+As the sum of residuals (divided by the sum of variances which standardizes it) approaches zero, the amount by which you need to adjust the previous ability estimate also approaches zero, and you converge on the maximum likelihood solution.
+
+Do the same for the item difficulties, and adjust them so that their mean is zero.
+
+```{r}
+#| label: adjust-difficulty
+
+adjusted_difficulty_1 <- summary_items |> 
+  dplyr::left_join(
+    residuals_1 |> 
+      dplyr::group_by(item) |> 
+      dplyr::reframe(sum_residuals = sum(residual, na.rm = TRUE)),
+    by = dplyr::join_by(item)
+  ) |> 
+  dplyr::left_join(
+    residuals_1 |> 
+      dplyr::group_by(item) |> 
+      dplyr::reframe(sum_variances = sum(variance)),
+    by = dplyr::join_by(item)
+  ) |> 
+  dplyr::mutate(
+    new_difficulty_logit = adj_difficulty_logit  - (sum_residuals / sum_variances),
+    new_adj_difficulty_logit = new_difficulty_logit - 
+      mean(new_difficulty_logit)
+  )
+
+adjusted_difficulty_1 |> 
+  flextable::flextable()
+
+```
+
+Now, keep iterating this process by  Computing a new round of expected values, but this time use the improved set of person ability logits and item difficulty logits. Keep iterating until the sum of the square residuals is zero or close to it. The function `cgrasch::cg_rm()` completes as many iterations as is required to reach a specified sensitivity. The default is set to .00001. The function provides all iterations of the ability and difficult estimates, the final sum of square residuals value and separate tables of the final ability and difficulty estimates.
+
+```{r}
+#| label: cgrasch-model
+
+model <- dichotomous |> 
+  cg_rm()
+
+```
+
+\
+
+```{r}
+#| label: abilities
+
+model$final_person_abilities |> 
+  flextable::flextable()
+
+```
+
+\
+
+```{r}
+#| label: difficulties
+
+model$final_item_difficulties |> 
+  flextable::flextable()
+
+```
+

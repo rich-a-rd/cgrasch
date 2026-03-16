@@ -1,0 +1,73 @@
+---
+title: "Founding principles"
+vignette: >
+  %\VignetteIndexEntry{Founding principles}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+knitr:
+  opts_chunk:
+    collapse: true
+    comment: '#>'
+---
+
+```{r}
+#| label: setup
+# library(cgrasch)
+```
+
+## Introduction
+
+-   Imagine a high jumper who has a PB of 2 metres.
+
+-   The chance, or the odds of success can be expressed as the jumper's ability minus the difficulty of the task.
+
+-   Odds is expressed as the probability of success over the probability of failure.
+
+-   $odds = \frac{P_1}{P_0}$
+
+## Some algebra and why
+
+-   Odds is the probability of success over the probability of failure $odds = \frac{P_1}{P_0}$
+
+-   Taking the natural log makes odds into log odds
+
+-   It maps the probabilities to the whole number line -$\infty$ to $\infty$ and makes the log odds of a 50:50 chance zero
+
+-   From $log\ odds = ln(\frac{P}{1 - P})$ ...
+
+-   We get $\beta - \delta = ln(\frac{P}{1 - P})$ or $ln(\frac{P_1}{P_0})$
+
+## Steps for whom at school girls > maths
+
+$$ 
+\begin{aligned}
+\beta - \delta &= \frac{P_1}{P_0}
+\\&= ln(\frac{P}{1-P})
+\\e^{(\beta - \delta)} &= \frac{P}{1 - P}
+\\P &= e^{\beta - \delta}(1 - P)
+\\&= e^{\beta - \delta} -Pe^{\beta - \delta}
+\\e^{\beta - \delta} &= P + Pe^{\beta - \delta}
+\\&= P(1 + e^{\beta - \delta})
+\\P &= \frac{e^{\beta - \delta}}{1 + e^{\beta - \delta}}
+\end{aligned}
+$$
+
+-   This means that if your ability matches the difficulty, i.e. $\beta - \delta = 0$, the probability of success is .5
+
+-  I.e. $e(0) = 1$, so $1 / 1 + 1 = 0.5$
+
+## Example for a single item
+
+```{r}
+#| echo: true
+
+b <- 7
+tibble::tibble(d = seq(0, 14, .1)) |>
+  dplyr::mutate(p1 = exp(b - d) / (1 + exp(b - d))) |>
+  ggplot2::ggplot(ggplot2::aes(y = d, x = p1)) +
+  ggplot2::geom_point() +
+  ggplot2::geom_hline(yintercept = b, linetype = "dashed") +
+  ggplot2::theme_minimal() +
+  ggplot2::labs(y = "difficulty", x = "probability of success")
+
+```

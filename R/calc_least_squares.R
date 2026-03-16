@@ -1,11 +1,14 @@
 
 #' Calculate least squares
 #'
-#' @returns
+#' @returns Numeric value of the sum of the squares of the
 #' @export
 #'
 #' @examples
-calc_least_squares <- function() {
+#' \dontrun{
+#' calc_sum_squares()
+#' }
+calc_sum_squares <- function() {
 
 
 }

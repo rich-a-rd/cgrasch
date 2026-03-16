@@ -4,7 +4,12 @@
 \alias{cg_rm}
 \title{Apply the Rasch model to dichotomous data.}
 \usage{
-cg_rm(sensitivity)
+cg_rm(df, sensitivity)
+}
+\arguments{
+\item{df}{A dataframe of candidate response data to dichotomous items. The
+dataframe should be in long format with person, item and response variables.
+Missing data is allowed.}
 }
 \value{
 A list of outputs
@@ -13,7 +18,8 @@ A list of outputs
 Apply the Rasch model to dichotomous data.
 }
 \examples{
-\dontrun{
-rm()
-}
+data(dichotomous)
+model <- dichotomous |>
+  cg_rm()
+model
 }
